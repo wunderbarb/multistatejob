@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package apic;
+
+option go_package = "github.com/wunderbarb/multistatejob/testdata";
+
+message Simple {
+  string msg = 1;
+}
+
+message Double {
+  uint64 val1 = 1;
+  int32 val2 = 2;
+}
