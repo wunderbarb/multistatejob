@@ -1,3 +1,5 @@
+// V0.0.1
+
 package msj
 
 import (
@@ -35,21 +37,48 @@ type Job struct {
 	Ended     time.Time `json:"ended"`
 }
 
+// NewJob creates a new Job with the specified type and message payload.
+// It marshals the message using protobuf and initializes the Job fields.
+// The Number field is populated automatically.
+// The State field is set to JobPending.
+// The Initiated field is set to the current time using time.Now().
+// The Payload field is set to the marshaled message.
+// Returns the created Job or an error if marshaling fails.
 func NewJob(typ int64, m proto.Message) (Job, error) {
-	payload, err := proto.Marshal(m)
-	if err != nil {
-		return Job{}, err
-	}
 	job := Job{
 		Number:    snowflake.ID(),
 		Type:      typ,
 		State:     JobPending,
-		Payload:   payload,
 		Initiated: time.Now(),
+	}
+	err := job.setPayload(m)
+	if err != nil {
+		return Job{}, err
 	}
 	return job, nil
 }
 
 func (j *Job) GetPayload(m proto.Message) error {
 	return proto.Unmarshal(j.Payload, m)
+}
+
+func (j *Job) Update(s JobState, m proto.Message) error {
+	err := j.setPayload(m)
+	if err != nil {
+		return err
+	}
+	j.State = s
+	return nil
+}
+
+func (j *Job) setPayload(m proto.Message) error {
+	if m == nil {
+		return nil
+	}
+	payload, err := proto.Marshal(m)
+	if err != nil {
+		return err
+	}
+	j.Payload = payload
+	return nil
 }
