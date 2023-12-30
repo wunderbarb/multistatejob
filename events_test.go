@@ -13,7 +13,7 @@ func TestNewEvent(t *testing.T) {
 	msg := go_test.RandomID()
 	msg1 := testdata.Simple{Msg: msg}
 
-	e, err := NewEvent(tt, &msg1)
+	e, err := NewEvent(0, tt, &msg1)
 	require.NoError(err)
 	assert.Equal(e.Type, tt)
 
@@ -21,8 +21,4 @@ func TestNewEvent(t *testing.T) {
 	err = e.GetPayload(&m)
 	require.NoError(err)
 	assert.Equal(msg, m.Msg)
-
-	var m1 *testdata.Simple
-	_, err = NewEvent(tt, m1)
-	assert.Error(err)
 }
