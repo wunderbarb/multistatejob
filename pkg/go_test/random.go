@@ -1,5 +1,5 @@
-// V0.10.0
-// Author: Diehl E.
+// V0.10.1
+// Author: Wunderbarb
 // (C) Dec 2023
 
 package go_test
@@ -113,6 +113,22 @@ func RandomAlphaString(size int, t AlphaNumType) string {
 	s := randomAlphaString(size, t)
 
 	return s
+}
+
+// RandomSlice returns a random slice with size bytes.
+// If size is zero or negative, then the number of bytes in the slice is random in the range
+// 1 to 256 characters.
+//
+// CAUTION: the randomness is not cryptographically secure, thus it should
+// not be used for generating keys.
+func RandomSlice(size int) []byte {
+	const size0 = 256 // max number of bytes for random set.
+	if size <= 0 {
+		size = Rng.Intn(size0) + 1
+	}
+	buffer := make([]byte, size)
+	_, _ = Rng.Read(buffer)
+	return buffer
 }
 
 // randomAlphaString generates a size-character random string which character
