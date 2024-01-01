@@ -68,7 +68,7 @@ linters:
   disable-all: true
   enable:
     - bodyclose
-#    - depguard
+    #    - depguard
     - dogsled
     - dupl
     - errcheck
@@ -101,5 +101,5 @@ linters:
     - unused
 
       #do not use
-      # - whitespace
+    # - whitespace
     # - gochecknoinits
