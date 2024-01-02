@@ -1,4 +1,6 @@
-// v0.1.0
+// v0.1.1
+// Author: Wunderbarb
+// ©, Jan 2024
 
 package msj
 
@@ -30,22 +32,7 @@ func TestDispatchEngine_HandleEvent(t *testing.T) {
 		a++
 		return nil
 	}
-	tt := go_test.Rng.Int()
-	m := MapState{
-		JobPending: MapEventFunction{
-			tt: fn,
-		},
-	}
-	nde := NewDispatchEngineInput{
-		In:   NewBasicEventQueue(),
-		Out:  nil,
-		Jobs: nil,
-		Ms:   m,
-	}
-	de, err := New(nde)
-	isPanic(err)
-	j, _ := NewJob(go_test.Rng.Int63(), nil)
-	isPanic(de.jobs.Add(j))
+	de, j, tt := randomDispatchEngineAndJob(fn)
 	ev, _ := NewEvent(j.Number, tt, nil)
 	require.NoError(de.HandleEvent(ev))
 	assert.Equal(2, a)
@@ -88,20 +75,7 @@ func TestDispatchEngine_Run(t *testing.T) {
 		a++
 		return nil
 	}
-	tt := go_test.Rng.Int()
-	m := MapState{
-		JobPending: MapEventFunction{
-			tt: fn,
-		},
-	}
-	nde := NewDispatchEngineInput{
-		In:   NewBasicEventQueue(),
-		Out:  nil,
-		Jobs: nil,
-		Ms:   m,
-	}
-	de, err := New(nde)
-	isPanic(err)
+	de, tt := randomDispatchEngine(fn)
 
 	de.Run(context.Background())
 	j, _ := NewJob(go_test.Rng.Int63(), nil)
@@ -112,4 +86,60 @@ func TestDispatchEngine_Run(t *testing.T) {
 		return a == 2
 	}, time.Second, 20*time.Millisecond)
 	de.Shutdown()
+}
+
+func TestDispatchEngine_JobCompleted(t *testing.T) {
+	require, assert := go_test.Describe(t)
+
+	a := 1
+	fn := func(_ Job, _ []byte, _ *DispatchEngine, _ ...any) error {
+		a++
+		return nil
+	}
+	de, j, _ := randomDispatchEngineAndJob(fn)
+
+	require.NoError(de.JobCompleted(j))
+	j1, err := de.jobs.GetJob(j.Number)
+	require.NoError(err)
+	assert.Equal(JobCompleted, j1.State)
+	assert.WithinDuration(time.Now(), j1.Ended, time.Millisecond)
+	oq := NewBasicEventQueue()
+	de.outQueue = oq
+	j2, _ := NewJob(go_test.Rng.Int63(), nil)
+	isPanic(de.jobs.Add(j2))
+	require.NoError(de.JobCompleted(j2))
+	j1, err = de.jobs.GetJob(j2.Number)
+	require.NoError(err)
+	assert.Equal(JobCompleted, j1.State)
+	assert.WithinDuration(time.Now(), j1.Ended, time.Millisecond)
+	ev, err := oq.Next()
+	require.NoError(err)
+	assert.Equal(EventCompleted, ev.Type)
+	assert.Equal(j2.Number, ev.Job)
+}
+
+func randomDispatchEngine(fn EventHandlerFunction) (DispatchEngine, int) {
+	tt := go_test.Rng.Int()
+	m := MapState{
+		JobPending: MapEventFunction{
+			tt: fn,
+		},
+	}
+
+	nde := NewDispatchEngineInput{
+		In:   NewBasicEventQueue(),
+		Out:  nil,
+		Jobs: nil,
+		Ms:   m,
+	}
+	de, err := New(nde)
+	isPanic(err)
+	return de, tt
+}
+
+func randomDispatchEngineAndJob(fn EventHandlerFunction) (DispatchEngine, Job, int) {
+	de, tt := randomDispatchEngine(fn)
+	j, _ := NewJob(go_test.Rng.Int63(), nil)
+	isPanic(de.jobs.Add(j))
+	return de, j, tt
 }

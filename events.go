@@ -2,6 +2,14 @@ package msj
 
 import "google.golang.org/protobuf/proto"
 
+const (
+
+	// EventCompleted is a constant representing the type of the event signaling a job successful completion.
+	EventCompleted = 1 + iota
+	EventFailed
+	EventCustomSpace
+)
+
 // Event represents an event with a type and payload.
 // The type is an integer that identifies the type of event.
 // The payload is a byte slice containing additional data that are marshalled protobuf messages.

@@ -1,15 +1,19 @@
-// v0.1.0
+// v0.1.1
+// Author: Wunderbarb
 
 package msj
 
 import (
 	"context"
-	"fmt"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
+	"time"
 )
 
 var (
 
+	// ErrInputQueueNeeded represents an error indicating the need for an input queue.
+	ErrInputQueueNeeded = errors.New("input queue requested")
 	// ErrUnknownEventType represents an error indicating an unknown event type.
 	ErrUnknownEventType = errors.New("unknown event type")
 	// ErrUnknownState represents an error indicating an unknown job state.
@@ -33,32 +37,76 @@ type DispatchEngine struct {
 	outQueue Queue
 	jobs     JobHolder
 	ms       MapState
+	log      *zap.Logger
 	ctx      context.Context
 	cancel   context.CancelFunc
 }
 
-// NewDispatchEngineInput is a struct that represents a dispatch engine,
-// responsible for managing queues, job operations, and map state.
+// NewDispatchEngineInput is a struct that represents the input parameters for creating a new DispatchEngine.
+// In is a mandatory interface that represents a queue for incoming events.
+// Out is an optional interface that represents a queue for outgoing events.
+// Jobs is an interface that represents a holder for jobs.
+// Ms is a map that stores event handler functions based on the job state.
+// Log is an optional logger for logging.
 type NewDispatchEngineInput struct {
 	In   Queue
 	Out  Queue
 	Jobs JobHolder
 	Ms   MapState
+	Log  *zap.Logger
 }
 
+// New is a function that creates a new instance of DispatchEngine.
+// It takes a NewDispatchEngineInput struct as the input parameter, which contains the necessary configuration options for initializing the DispatchEngine instance.
+// If the Jobs object is not provided, it creates a new JobHolderAsMap.
+// If the Log object is not provided, it creates a new Logger with the filename "dispatcher.log" and WithVerbose option.
+// Finally, it creates a new instance of DispatchEngine by assigning the input parameters to the corresponding fields of DispatchEngine struct and returns it along with nil error.
 func New(nde NewDispatchEngineInput) (DispatchEngine, error) {
 	if nde.In == nil {
-		return DispatchEngine{}, errors.New("input queue is required")
+		return DispatchEngine{}, ErrInputQueueNeeded
 	}
 	if nde.Jobs == nil {
 		nde.Jobs = NewJobHolderAsMap()
+	}
+	if nde.Log == nil {
+		l, err := NewLogger("dispatcher.log", WithVerbose())
+		if err != nil { // SHOULD NEVER HAPPEN
+			return DispatchEngine{}, err
+		}
+		nde.Log = l.Zap()
 	}
 	return DispatchEngine{
 		inQueue:  nde.In,
 		outQueue: nde.Out,
 		jobs:     nde.Jobs,
 		ms:       nde.Ms,
+		log:      nde.Log,
 	}, nil
+}
+
+func (de *DispatchEngine) JobCompleted(j Job) error {
+	j.State = JobCompleted
+	j.Ended = time.Now()
+	de.log.Info("completed", zap.Uint64("job", j.Number))
+	err := de.jobs.UpdateJob(j)
+	if err != nil {
+		return err
+	}
+	if de.outQueue == nil {
+		return nil
+	}
+	ev, err := NewEvent(j.Number, EventCompleted, nil)
+	if err != nil {
+		// SHOULD NEVER HAPPEN
+		return err
+	}
+	err = de.outQueue.Add(ev)
+	if err != nil {
+		// SHOULD NEVER HAPPEN
+		return err
+	}
+
+	return nil
 }
 
 func (de *DispatchEngine) Run(ctx context.Context, a ...any) {
@@ -71,9 +119,12 @@ func (de *DispatchEngine) Run(ctx context.Context, a ...any) {
 			default:
 				ev, ok := de.inQueue.TryNext()
 				if ok {
-					err := de.HandleEvent(ev)
+					de.log.Info("HandleEvent", zap.Int("event type", ev.Type),
+						zap.Uint64("job", ev.Job))
+					err := de.HandleEvent(ev, a...)
 					if err != nil {
-						fmt.Printf("err %v\n", err)
+						de.log.Error("HandleEvent", zap.Error(err), zap.Int("event type", ev.Type),
+							zap.Uint64("job", ev.Job))
 					}
 				}
 			}
