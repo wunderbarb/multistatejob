@@ -1,5 +1,6 @@
-// v0.1.2
+// v0.1.3
 // Author: Wunderbarb
+// ©, Jan 2024
 
 package msj
 
@@ -85,6 +86,11 @@ func New(nde NewDispatchEngineInput) (DispatchEngine, error) {
 		ms:       nde.Ms,
 		log:      nde.Log,
 	}, nil
+}
+
+// AddEvent injects the event ev into the input queue.
+func (de *DispatchEngine) AddEvent(ev Event) error {
+	return de.inQueue.Add(ev)
 }
 
 func (de *DispatchEngine) JobFailed(j Job, errIn error) error {

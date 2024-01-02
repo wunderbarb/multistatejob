@@ -1,4 +1,4 @@
-// v0.1.1
+// v0.1.3
 // Author: Wunderbarb
 // ©, Jan 2024
 
@@ -82,7 +82,7 @@ func TestDispatchEngine_Run(t *testing.T) {
 	j, _ := NewJob(go_test.Rng.Int63(), nil)
 	isPanic(de.jobs.Add(j))
 	ev, _ := NewEvent(j.Number, tt, nil)
-	require.NoError(de.inQueue.Add(ev))
+	require.NoError(de.AddEvent(ev))
 	assert.Eventually(func() bool {
 		return a == 2
 	}, time.Second, 20*time.Millisecond)
@@ -117,6 +117,9 @@ func TestDispatchEngine_JobCompleted(t *testing.T) {
 	require.NoError(err)
 	assert.Equal(EventCompleted, ev.Type)
 	assert.Equal(j2.Number, ev.Job)
+
+	j3, _ := NewJob(go_test.Rng.Int63(), nil)
+	assert.Error(de.JobCompleted(j3))
 }
 
 func TestDispatchEngine_JobFailed(t *testing.T) {
@@ -151,7 +154,11 @@ func TestDispatchEngine_JobFailed(t *testing.T) {
 	var msg1 JobFailedMsg
 	require.NoError(ev.GetPayload(&msg1))
 	assert.Equal(err1.Error(), msg1.GetMsg())
+
+	j3, _ := NewJob(go_test.Rng.Int63(), nil)
+	assert.Error(de.JobFailed(j3, err1))
 }
+
 func randomDispatchEngine(fn EventHandlerFunction) (DispatchEngine, int) {
 	tt := go_test.Rng.Int()
 	m := MapState{
