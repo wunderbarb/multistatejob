@@ -6,6 +6,7 @@ package msj
 
 import (
 	"context"
+	"errors"
 	"github.com/wunderbarb/multistatejob/pkg/go_test"
 	"testing"
 	"time"
@@ -118,6 +119,39 @@ func TestDispatchEngine_JobCompleted(t *testing.T) {
 	assert.Equal(j2.Number, ev.Job)
 }
 
+func TestDispatchEngine_JobFailed(t *testing.T) {
+	require, assert := go_test.Describe(t)
+
+	a := 1
+	fn := func(_ Job, _ []byte, _ *DispatchEngine, _ ...any) error {
+		a++
+		return nil
+	}
+	de, j, _ := randomDispatchEngineAndJob(fn)
+
+	err1 := errors.New("for the test")
+	require.NoError(de.JobFailed(j, err1))
+	j1, err := de.jobs.GetJob(j.Number)
+	require.NoError(err)
+	assert.Equal(JobFailed, j1.State)
+	assert.WithinDuration(time.Now(), j1.Ended, time.Millisecond)
+	oq := NewBasicEventQueue()
+	de.outQueue = oq
+	j2, _ := NewJob(go_test.Rng.Int63(), nil)
+	isPanic(de.jobs.Add(j2))
+	require.NoError(de.JobFailed(j2, err1))
+	j1, err = de.jobs.GetJob(j2.Number)
+	require.NoError(err)
+	assert.Equal(JobFailed, j1.State)
+	assert.WithinDuration(time.Now(), j1.Ended, time.Millisecond)
+	ev, err := oq.Next()
+	require.NoError(err)
+	assert.Equal(EventFailed, ev.Type)
+	assert.Equal(j2.Number, ev.Job)
+	var msg1 JobFailedMsg
+	require.NoError(ev.GetPayload(&msg1))
+	assert.Equal(err1.Error(), msg1.GetMsg())
+}
 func randomDispatchEngine(fn EventHandlerFunction) (DispatchEngine, int) {
 	tt := go_test.Rng.Int()
 	m := MapState{

@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package msj;
+
+option go_package = "github.com/wunderbarb/msj";
+
+// JobFailedMsg is the payload of event of type JobFailed
+message JobFailedMsg {
+  string msg = 1;
+}

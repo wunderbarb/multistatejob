@@ -1,1 +1,3 @@
 .idea/
+*.log
+/msg1.pb.go

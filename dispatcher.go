@@ -1,12 +1,15 @@
-// v0.1.1
+// v0.1.2
 // Author: Wunderbarb
 
 package msj
+
+//go:generate protoc  -I=. --proto_path=. --go_out=. --go_opt=paths=source_relative msg1.proto
 
 import (
 	"context"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 	"time"
 )
 
@@ -84,6 +87,31 @@ func New(nde NewDispatchEngineInput) (DispatchEngine, error) {
 	}, nil
 }
 
+func (de *DispatchEngine) JobFailed(j Job, errIn error) error {
+	em := &JobFailedMsg{Msg: errIn.Error()}
+	data, err := proto.Marshal(em)
+	if err != nil { // SHOULD NEVER HAPPEN
+		return err
+	}
+	j.State = JobFailed
+	j.Ended = time.Now()
+	j.Payload = data
+	de.log.Info("failed", zap.Uint64("job", j.Number), zap.Error(errIn))
+	err = de.jobs.UpdateJob(j)
+	if err != nil {
+		return err
+	}
+	if de.outQueue == nil {
+		return nil
+	}
+	ev, err := NewEvent(j.Number, EventFailed, em)
+	if err != nil {
+		// SHOULD NEVER HAPPEN
+		return err
+	}
+	return de.outQueue.Add(ev)
+}
+
 func (de *DispatchEngine) JobCompleted(j Job) error {
 	j.State = JobCompleted
 	j.Ended = time.Now()
@@ -100,13 +128,7 @@ func (de *DispatchEngine) JobCompleted(j Job) error {
 		// SHOULD NEVER HAPPEN
 		return err
 	}
-	err = de.outQueue.Add(ev)
-	if err != nil {
-		// SHOULD NEVER HAPPEN
-		return err
-	}
-
-	return nil
+	return de.outQueue.Add(ev)
 }
 
 func (de *DispatchEngine) Run(ctx context.Context, a ...any) {
